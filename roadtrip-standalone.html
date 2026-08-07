@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>AI 路书 · 车载导游</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f0f14;--surface:#1a1a24;--border:#2a2a38;--text:#e8e8ec;--text2:#9090a0;
+  --accent:#4da6ff;--accent2:#ff6b6b;--green:#4ecb71;--radius:8px
+}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--text);display:flex;flex-direction:column;
+  -webkit-tap-highlight-color:transparent;user-select:none
+}
+
+/* 顶部状态栏 */
+.topbar{
+  background:var(--surface);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);min-height:52px;z-index:10;flex-shrink:0
+}
+.topbar h1{font-size:18px;font-weight:600;letter-spacing:.5px}
+.topbar .status{font-size:12px;color:var(--text2)}
+.topbar .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.dot.gps{background:var(--green);animation:pulse 2s infinite}
+.dot.nogps{background:var(--accent2)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* 主体内容区 */
+.main{
+  flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;
+  display:flex;flex-direction:column;gap:12px
+}
+
+/* 当前位置卡片 */
+.location-card{
+  background:var(--surface);border-radius:var(--radius);padding:16px;border:1px solid var(--border)
+}
+.location-card .label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.location-card .city-name{font-size:28px;font-weight:700;line-height:1.2}
+.location-card .province{font-size:14px;color:var(--text2)}
+.location-card .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.location-card .tag{
+  background:rgba(77,166,255,.15);color:var(--accent);padding:2px 8px;border-radius:12px;font-size:11px
+}
+.location-card .distance{font-size:12px;color:var(--green);margin-top:4px}
+
+/* 讲解内容卡片 */
+.narration-card{
+  background:var(--surface);border-radius:var(--radius);padding:16px;border:1px solid var(--border);
+  min-height:80px
+}
+.narration-card .label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.narration-card .content{font-size:16px;line-height:1.7;color:var(--text)}
+.narration-card .content.placeholder{color:var(--text2);font-style:italic}
+.narration-card .attribution{font-size:11px;color:var(--text2);margin-top:8px;text-align:right}
+
+/* 控制区 */
+.controls{
+  display:flex;gap:8px;flex-shrink:0;padding:0 16px 16px
+}
+.btn{
+  flex:1;padding:14px;border:none;border-radius:var(--radius);font-size:15px;font-weight:600;
+  cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;
+  -webkit-tap-highlight-color:transparent;min-height:48px
+}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:active{transform:scale(.97);opacity:.9}
+.btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:active{background:var(--border)}
+.btn-danger{background:var(--accent2);color:#fff}
+.btn-danger:active{transform:scale(.97);opacity:.9}
+.btn:disabled{opacity:.4;pointer-events:none}
+
+/* 语音指示器 */
+.speaking-indicator{
+  display:flex;align-items:center;gap:8px;padding:8px 16px;background:rgba(78,203,113,.12);
+  border-top:1px solid rgba(78,203,113,.3);flex-shrink:0
+}
+.speaking-indicator .wave{display:flex;gap:2px;align-items:flex-end;height:16px}
+.speaking-indicator .wave span{
+  width:3px;background:var(--green);border-radius:2px;
+  animation:wave .8s ease-in-out infinite
+}
+.speaking-indicator .wave span:nth-child(1){height:8px;animation-delay:0s}
+.speaking-indicator .wave span:nth-child(2){height:16px;animation-delay:.1s}
+.speaking-indicator .wave span:nth-child(3){height:12px;animation-delay:.2s}
+.speaking-indicator .wave span:nth-child(4){height:6px;animation-delay:.3s}
+.speaking-indicator .wave span:nth-child(5){height:14px;animation-delay:.4s}
+@keyframes wave{0%,100%{opacity:.5;transform:scaleY(1)}50%{opacity:1;transform:scaleY(.6)}}
+
+/* 设置面板 */
+.settings{
+  position:fixed;top:0;right:0;width:100%;max-width:360px;height:100%;background:var(--surface);
+  z-index:100;transform:translateX(100%);transition:transform .3s;display:flex;flex-direction:column;
+  box-shadow:-4px 0 20px rgba(0,0,0,.5)
+}
+.settings.open{transform:translateX(0)}
+.settings-header{
+  padding:16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center
+}
+.settings-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:16px}
+.setting-group{display:flex;flex-direction:column;gap:8px}
+.setting-group label{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+.setting-group select,.setting-group input{
+  background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);
+  padding:10px 12px;font-size:14px;width:100%
+}
+.overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:99;display:none}
+.overlay.show{display:block}
+
+/* 历史记录 */
+.history-item{
+  padding:12px;background:var(--bg);border-radius:var(--radius);border:1px solid var(--border);
+  cursor:pointer;transition:all .15s
+}
+.history-item:active{background:var(--border)}
+.history-item .time{font-size:11px;color:var(--text2)}
+.history-item .text{font-size:14px;margin-top:4px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* Toast */
+.toast{
+  position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--surface);
+  color:var(--text);padding:10px 20px;border-radius:20px;font-size:14px;z-index:200;
+  box-shadow:0 4px 16px rgba(0,0,0,.4);opacity:0;transition:opacity .3s;pointer-events:none
+}
+.toast.show{opacity:1}
+
+/* 响应式 */
+@media(min-width:600px){
+  .main{max-width:500px;margin:0 auto}
+  .controls{max-width:500px;margin:0 auto}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>AI 路书</h1>
+    <span class="status"><span class="dot nogps" id="gpsDot"></span><span id="gpsStatus">等待定位</span></span>
+  </div>
+  <button class="btn btn-secondary" style="flex:none;padding:8px 12px;font-size:13px" onclick="toggleSettings()">⚙</button>
+</div>
+
+<div class="speaking-indicator" id="speakingBar" style="display:none">
+  <div class="wave"><span></span><span></span><span></span><span></span><span></span></div>
+  <span style="font-size:13px;color:var(--green)">正在讲解...</span>
+</div>
+
+<div class="main" id="mainContent">
+  <div class="location-card" id="locationCard">
+    <div class="label">当前位置</div>
+    <div class="city-name" id="cityName">---</div>
+    <div class="province" id="cityProvince"></div>
+    <div class="tags" id="cityTags"></div>
+    <div class="distance" id="cityDistance"></div>
+  </div>
+  <div class="narration-card" id="narrationCard">
+    <div class="label">AI 讲解</div>
+    <div class="content placeholder" id="narrationText">点击下方按钮，让我给你讲讲这里的故事。</div>
+    <div class="attribution" id="narrationAttr"></div>
+  </div>
+  <div class="narration-card" id="historyCard" style="display:none">
+    <div class="label">讲解记录</div>
+    <div id="historyList"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn btn-primary" id="btnNarrate" onclick="requestNarration()">讲讲这里</button>
+  <button class="btn btn-secondary" id="btnAuto" onclick="toggleAuto()">自动模式 · 开</button>
+</div>
+
+<div class="overlay" id="overlay" onclick="toggleSettings()"></div>
+<div class="settings" id="settingsPanel">
+  <div class="settings-header">
+    <h3>设置</h3>
+    <button class="btn btn-secondary" style="flex:none;padding:6px 12px;font-size:13px" onclick="toggleSettings()">X</button>
+  </div>
+  <div class="settings-body">
+    <div class="setting-group">
+      <label>DeepSeek API Key（必填）</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-..." onchange="saveKey()">
+    </div>
+    <div class="setting-group">
+      <label>触发距离</label>
+      <select id="triggerDistance" onchange="saveSettings()">
+        <option value="3">进入城市3公里内</option>
+        <option value="5" selected>进入城市5公里内</option>
+        <option value="10">进入城市10公里内</option>
+        <option value="20">进入城市20公里内</option>
+      </select>
+    </div>
+    <div class="setting-group">
+      <label>自动讲解间隔（分钟）</label>
+      <select id="autoInterval" onchange="saveSettings()">
+        <option value="2">2分钟</option>
+        <option value="5" selected>5分钟</option>
+        <option value="10">10分钟</option>
+        <option value="15">15分钟</option>
+      </select>
+    </div>
+    <div class="setting-group">
+      <label>语音语速</label>
+      <select id="speechRate" onchange="saveSettings()">
+        <option value="0.8">较慢</option>
+        <option value="1.0" selected>正常</option>
+        <option value="1.2">较快</option>
+      </select>
+    </div>
+    <button class="btn btn-secondary" onclick="clearHistory()">清除讲解记录</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== 城市数据（内嵌，80个城市）=====
+const CITY_DATA = [{"name":"北京市","province":"北京","type":"capital","lat":39.9042,"lng":116.4074,"tags":["首都","故宫","长城","胡同","京剧","烤鸭"],"attractions":[{"name":"故宫","lat":39.9163,"lng":116.3972},{"name":"长城(八达岭)","lat":40.3599,"lng":116.0201},{"name":"天安门广场","lat":39.9087,"lng":116.3975},{"name":"颐和园","lat":39.9999,"lng":116.2755},{"name":"天坛","lat":39.8822,"lng":116.4066}],"brief":"中华人民共和国的首都，三千余年建城史，八百余年建都史。"},{"name":"天津市","province":"天津","type":"capital","lat":39.3434,"lng":117.3616,"tags":["租界建筑","相声","海河","五大道"],"attractions":[{"name":"天津之眼","lat":39.1538,"lng":117.181},{"name":"五大道","lat":39.108,"lng":117.196},{"name":"意式风情区","lat":39.137,"lng":117.2}],"brief":"北方最大的港口城市，中西合璧的独特城市风貌。"},{"name":"上海市","province":"上海","type":"capital","lat":31.2304,"lng":121.4737,"tags":["外滩","陆家嘴","东方明珠","弄堂","国际化"],"attractions":[{"name":"外滩","lat":31.24,"lng":121.49},{"name":"东方明珠","lat":31.2397,"lng":121.4998},{"name":"豫园","lat":31.2272,"lng":121.4924},{"name":"迪士尼乐园","lat":31.1433,"lng":121.6603}],"brief":"中国的经济金融中心，被称为魔都。"},{"name":"重庆市","province":"重庆","type":"capital","lat":29.4316,"lng":106.9123,"tags":["山城","火锅","洪崖洞","长江三峡","8D魔幻"],"attractions":[{"name":"洪崖洞","lat":29.563,"lng":106.583},{"name":"解放碑","lat":29.5603,"lng":106.5767},{"name":"磁器口古镇","lat":29.58,"lng":106.45},{"name":"大足石刻","lat":29.7,"lng":105.71}],"brief":"山城、江城、桥都，8D魔幻立体城市。"},{"name":"石家庄市","province":"河北","type":"capital","lat":38.0428,"lng":114.5149,"tags":["西柏坡","正定","赵州桥"],"attractions":[{"name":"西柏坡","lat":38.34,"lng":113.97},{"name":"正定古城","lat":38.15,"lng":114.57},{"name":"赵州桥","lat":37.72,"lng":114.78}],"brief":"河北省省会，新中国从这里走来。"},{"name":"太原市","province":"山西","type":"capital","lat":37.8706,"lng":112.5489,"tags":["晋祠","面食","龙城","古建筑"],"attractions":[{"name":"晋祠","lat":37.71,"lng":112.44},{"name":"山西博物院","lat":37.86,"lng":112.53}],"brief":"山西省省会，别称龙城，2500余年建城史。"},{"name":"呼和浩特市","province":"内蒙古","type":"capital","lat":40.8424,"lng":111.749,"tags":["草原","蒙古族","召庙","乳都"],"attractions":[{"name":"大召寺","lat":40.8,"lng":111.67},{"name":"希拉穆仁草原","lat":41.3,"lng":111.2}],"brief":"内蒙古自治区首府，草原文化与现代城市的交汇之地。"},{"name":"沈阳市","province":"辽宁","type":"capital","lat":41.8057,"lng":123.4315,"tags":["故宫","工业重镇","满清文化","张氏帅府"],"attractions":[{"name":"沈阳故宫","lat":41.7962,"lng":123.4509},{"name":"张氏帅府","lat":41.793,"lng":123.459},{"name":"北陵公园","lat":41.846,"lng":123.425}],"brief":"一朝发祥地，两代帝王都。"},{"name":"长春市","province":"吉林","type":"capital","lat":43.8171,"lng":125.3235,"tags":["汽车城","电影城","伪满皇宫","冰雪"],"attractions":[{"name":"伪满皇宫博物院","lat":43.888,"lng":125.348},{"name":"净月潭","lat":43.78,"lng":125.45}],"brief":"吉林省省会，中国汽车工业的摇篮。"},{"name":"哈尔滨市","province":"黑龙江","type":"capital","lat":45.8038,"lng":126.535,"tags":["冰雪大世界","中央大街","俄式建筑","音乐之都"],"attractions":[{"name":"中央大街","lat":45.77,"lng":126.62},{"name":"冰雪大世界","lat":45.78,"lng":126.51},{"name":"圣索菲亚教堂","lat":45.768,"lng":126.623}],"brief":"东方莫斯科，冰城夏都。"},{"name":"南京市","province":"江苏","type":"capital","lat":32.0603,"lng":118.7969,"tags":["六朝古都","中山陵","夫子庙","梧桐"],"attractions":[{"name":"中山陵","lat":32.06,"lng":118.85},{"name":"夫子庙秦淮河","lat":32.02,"lng":118.79},{"name":"明孝陵","lat":32.06,"lng":118.84},{"name":"总统府","lat":32.046,"lng":118.792}],"brief":"六朝古都、十朝都会，中国四大古都之一。"},{"name":"杭州市","province":"浙江","type":"capital","lat":30.2741,"lng":120.1551,"tags":["西湖","互联网","龙井茶","江南水乡","良渚"],"attractions":[{"name":"西湖","lat":30.24,"lng":120.14},{"name":"灵隐寺","lat":30.243,"lng":120.1},{"name":"千岛湖","lat":29.6,"lng":119.04},{"name":"良渚古城遗址","lat":30.39,"lng":120}],"brief":"上有天堂，下有苏杭。"},{"name":"合肥市","province":"安徽","type":"capital","lat":31.8206,"lng":117.2272,"tags":["三国故地","包公故里","科技城","巢湖"],"attractions":[{"name":"包公园","lat":31.86,"lng":117.29},{"name":"三河古镇","lat":31.52,"lng":117.26}],"brief":"安徽省省会，综合性国家科学中心。"},{"name":"福州市","province":"福建","type":"capital","lat":26.0745,"lng":119.2965,"tags":["榕城","三坊七巷","温泉","茉莉花"],"attractions":[{"name":"三坊七巷","lat":26.08,"lng":119.3},{"name":"鼓山","lat":26.05,"lng":119.38},{"name":"平潭岛","lat":25.52,"lng":119.78}],"brief":"福建省省会，海上丝绸之路门户。"},{"name":"南昌市","province":"江西","type":"capital","lat":28.682,"lng":115.8579,"tags":["滕王阁","八一南昌起义","鄱阳湖","英雄城"],"attractions":[{"name":"滕王阁","lat":28.684,"lng":115.875},{"name":"八一起义纪念馆","lat":28.678,"lng":115.882}],"brief":"英雄城，因《滕王阁序》千古流芳。"},{"name":"济南市","province":"山东","type":"capital","lat":36.6512,"lng":116.9972,"tags":["泉城","大明湖","趵突泉","千佛山","鲁菜"],"attractions":[{"name":"趵突泉","lat":36.66,"lng":117.01},{"name":"大明湖","lat":36.675,"lng":117.02},{"name":"千佛山","lat":36.645,"lng":117.035}],"brief":"家家泉水，户户垂杨。"},{"name":"郑州市","province":"河南","type":"capital","lat":34.7466,"lng":113.6254,"tags":["商都","少林寺","黄河","天地之中"],"attractions":[{"name":"少林寺","lat":34.507,"lng":112.936},{"name":"河南博物院","lat":34.78,"lng":113.68},{"name":"黄河风景名胜区","lat":34.92,"lng":113.51}],"brief":"华夏文明重要发祥地，天地之中。"},{"name":"武汉市","province":"湖北","type":"capital","lat":30.5928,"lng":114.3055,"tags":["江城","黄鹤楼","热干面","长江大桥","东湖","樱花"],"attractions":[{"name":"黄鹤楼","lat":30.544,"lng":114.301},{"name":"东湖","lat":30.56,"lng":114.39},{"name":"湖北省博物馆","lat":30.565,"lng":114.361},{"name":"武汉长江大桥","lat":30.549,"lng":114.302}],"brief":"九省通衢，长江与汉江交汇处。"},{"name":"长沙市","province":"湖南","type":"capital","lat":28.2282,"lng":112.9388,"tags":["岳麓山","橘子洲","马王堆","臭豆腐","文娱之都"],"attractions":[{"name":"岳麓山","lat":28.186,"lng":112.936},{"name":"橘子洲","lat":28.184,"lng":112.958},{"name":"湖南省博物馆","lat":28.21,"lng":113}],"brief":"楚汉名城，屈贾之乡。"},{"name":"广州市","province":"广东","type":"capital","lat":23.1292,"lng":113.2644,"tags":["羊城","花城","早茶","珠江","小蛮腰"],"attractions":[{"name":"广州塔","lat":23.109,"lng":113.324},{"name":"白云山","lat":23.18,"lng":113.29},{"name":"陈家祠","lat":23.13,"lng":113.24},{"name":"长隆野生动物世界","lat":23.01,"lng":113.32}],"brief":"千年商都，海上丝绸之路的起点之一。"},{"name":"南宁市","province":"广西","type":"capital","lat":22.817,"lng":108.3665,"tags":["绿城","东盟","青秀山","老友粉"],"attractions":[{"name":"青秀山","lat":22.79,"lng":108.38},{"name":"广西民族博物馆","lat":22.78,"lng":108.39}],"brief":"半城绿树半城楼，中国-东盟博览会永久举办地。"},{"name":"海口市","province":"海南","type":"capital","lat":20.044,"lng":110.1999,"tags":["椰城","骑楼","热带海滨","火山口"],"attractions":[{"name":"骑楼老街","lat":20.046,"lng":110.345},{"name":"假日海滩","lat":20.04,"lng":110.26}],"brief":"海南省省会，热带海滨城市。"},{"name":"成都市","province":"四川","type":"capital","lat":30.5728,"lng":104.0668,"tags":["天府之国","大熊猫","都江堰","宽窄巷子","火锅","川剧"],"attractions":[{"name":"宽窄巷子","lat":30.666,"lng":104.058},{"name":"大熊猫基地","lat":30.733,"lng":104.143},{"name":"都江堰","lat":30.997,"lng":103.618},{"name":"武侯祠锦里","lat":30.646,"lng":104.048},{"name":"青城山","lat":30.9,"lng":103.57}],"brief":"天府之国，悠闲之都，美食与熊猫的故乡。"},{"name":"贵阳市","province":"贵州","type":"capital","lat":26.647,"lng":106.6302,"tags":["林城","避暑","大数据","酸汤鱼"],"attractions":[{"name":"黔灵山公园","lat":26.6,"lng":106.69},{"name":"甲秀楼","lat":26.576,"lng":106.719},{"name":"青岩古镇","lat":26.33,"lng":106.69}],"brief":"中国数谷，夏季避暑胜地。"},{"name":"昆明市","province":"云南","type":"capital","lat":25.0389,"lng":102.7183,"tags":["春城","滇池","石林","鲜花","过桥米线"],"attractions":[{"name":"滇池","lat":24.96,"lng":102.68},{"name":"石林","lat":24.82,"lng":103.32},{"name":"云南民族村","lat":24.97,"lng":102.66}],"brief":"四季如春的春城，多民族文化交汇之地。"},{"name":"拉萨市","province":"西藏","type":"capital","lat":29.65,"lng":91.1,"tags":["布达拉宫","日光城","藏传佛教","纳木错"],"attractions":[{"name":"布达拉宫","lat":29.657,"lng":91.117},{"name":"大昭寺","lat":29.653,"lng":91.131},{"name":"纳木错","lat":30.71,"lng":90.83}],"brief":"海拔3650米的日光城，藏传佛教圣地。"},{"name":"西安市","province":"陕西","type":"capital","lat":34.3416,"lng":108.9398,"tags":["十三朝古都","兵马俑","大雁塔","城墙","biangbiang面"],"attractions":[{"name":"兵马俑","lat":34.385,"lng":109.273},{"name":"大雁塔","lat":34.22,"lng":108.96},{"name":"西安城墙","lat":34.256,"lng":108.942},{"name":"华清宫","lat":34.363,"lng":109.209},{"name":"大唐不夜城","lat":34.208,"lng":108.962}],"brief":"世界四大古都之一，丝绸之路起点。"},{"name":"兰州市","province":"甘肃","type":"capital","lat":36.0611,"lng":103.8343,"tags":["黄河","中山桥","拉面","丝路重镇"],"attractions":[{"name":"中山桥","lat":36.064,"lng":103.815},{"name":"甘肃省博物馆","lat":36.058,"lng":103.835}],"brief":"黄河穿城而过，古丝绸之路重镇。"},{"name":"西宁市","province":"青海","type":"capital","lat":36.6171,"lng":101.7785,"tags":["青藏高原门户","塔尔寺","青海湖","清真美食"],"attractions":[{"name":"塔尔寺","lat":36.45,"lng":101.56},{"name":"青海湖","lat":36.88,"lng":100.47}],"brief":"青藏高原的东方门户。"},{"name":"银川市","province":"宁夏","type":"capital","lat":38.4872,"lng":106.2309,"tags":["塞上江南","西夏王陵","沙湖","羊肉"],"attractions":[{"name":"西夏王陵","lat":38.44,"lng":105.99},{"name":"沙湖","lat":38.81,"lng":106.37},{"name":"镇北堡西部影城","lat":38.61,"lng":106.06}],"brief":"塞上江南、鱼米之乡。"},{"name":"乌鲁木齐市","province":"新疆","type":"capital","lat":43.8256,"lng":87.6168,"tags":["天山","大巴扎","丝绸之路","羊肉串"],"attractions":[{"name":"天山天池","lat":43.88,"lng":88.12},{"name":"国际大巴扎","lat":43.78,"lng":87.62},{"name":"新疆博物馆","lat":43.82,"lng":87.59}],"brief":"世界上离海洋最远的大城市。"},{"name":"台北市","province":"台湾","type":"capital","lat":25.033,"lng":121.5654,"tags":["101大楼","故宫博物院","夜市","阳明山"],"attractions":[{"name":"台北101","lat":25.0336,"lng":121.5647},{"name":"台北故宫博物院","lat":25.102,"lng":121.548},{"name":"士林夜市","lat":25.088,"lng":121.526}],"brief":"现代化与传统交织的活力都市。"},{"name":"香港","province":"香港","type":"capital","lat":22.3193,"lng":114.1694,"tags":["国际金融中心","维多利亚港","购物天堂","茶餐厅","迪士尼"],"attractions":[{"name":"维多利亚港","lat":22.29,"lng":114.17},{"name":"太平山顶","lat":22.271,"lng":114.15},{"name":"香港迪士尼乐园","lat":22.313,"lng":114.041}],"brief":"东西方文化交融的国际都会。"},{"name":"澳门","province":"澳门","type":"capital","lat":22.1987,"lng":113.5439,"tags":["大三巴牌坊","葡式蛋挞","中西合璧"],"attractions":[{"name":"大三巴牌坊","lat":22.197,"lng":113.541},{"name":"澳门塔","lat":22.18,"lng":113.539}],"brief":"世界旅游休闲中心。"},{"name":"苏州市","province":"江苏","type":"tourist","lat":31.299,"lng":120.5853,"tags":["苏州园林","江南水乡","寒山寺","昆曲","苏绣"],"attractions":[{"name":"拙政园","lat":31.326,"lng":120.633},{"name":"虎丘","lat":31.337,"lng":120.583},{"name":"周庄古镇","lat":31.133,"lng":120.846}],"brief":"上有天堂，下有苏杭，中国园林之城。"},{"name":"无锡市","province":"江苏","type":"tourist","lat":31.4912,"lng":120.312,"tags":["太湖","鼋头渚","灵山大佛"],"attractions":[{"name":"鼋头渚","lat":31.53,"lng":120.22},{"name":"灵山大佛","lat":31.44,"lng":120.11}],"brief":"太湖明珠，江南水乡的璀璨宝石。"},{"name":"扬州市","province":"江苏","type":"tourist","lat":32.3942,"lng":119.4129,"tags":["瘦西湖","个园","淮扬菜","大运河"],"attractions":[{"name":"瘦西湖","lat":32.4,"lng":119.42},{"name":"个园","lat":32.4,"lng":119.44}],"brief":"烟花三月下扬州，淮扬菜发源地之一。"},{"name":"绍兴市","province":"浙江","type":"tourist","lat":30.0303,"lng":120.5802,"tags":["鲁迅故里","黄酒","沈园","兰亭"],"attractions":[{"name":"鲁迅故里","lat":30,"lng":120.59},{"name":"沈园","lat":29.997,"lng":120.586},{"name":"兰亭","lat":29.93,"lng":120.5}],"brief":"江南水乡，鲁迅故里，黄酒之乡。"},{"name":"宁波市","province":"浙江","type":"tourist","lat":29.8683,"lng":121.544,"tags":["天一阁","东钱湖","宁波港","藏书文化"],"attractions":[{"name":"天一阁","lat":29.873,"lng":121.537},{"name":"东钱湖","lat":29.77,"lng":121.65}],"brief":"书藏古今、港通天下。"},{"name":"厦门市","province":"福建","type":"tourist","lat":24.4798,"lng":118.0894,"tags":["鼓浪屿","厦门大学","环岛路","文艺"],"attractions":[{"name":"鼓浪屿","lat":24.447,"lng":118.068},{"name":"厦门大学","lat":24.438,"lng":118.095},{"name":"南普陀寺","lat":24.443,"lng":118.091}],"brief":"海上花园，钢琴之岛鼓浪屿。"},{"name":"泉州市","province":"福建","type":"tourist","lat":24.8741,"lng":118.6759,"tags":["海上丝绸之路","开元寺","闽南文化"],"attractions":[{"name":"开元寺","lat":24.917,"lng":118.588},{"name":"清源山","lat":24.96,"lng":118.61}],"brief":"宋元时期世界第一大港，世界遗产城市。"},{"name":"黄山市","province":"安徽","type":"tourist","lat":29.7152,"lng":118.3386,"tags":["黄山","宏村","徽派建筑","迎客松"],"attractions":[{"name":"黄山风景区","lat":30.134,"lng":118.165},{"name":"宏村","lat":30.004,"lng":117.989}],"brief":"五岳归来不看山，黄山归来不看岳。"},{"name":"青岛市","province":"山东","type":"tourist","lat":36.0671,"lng":120.3826,"tags":["啤酒","崂山","八大关","帆船之都","海鲜"],"attractions":[{"name":"栈桥","lat":36.06,"lng":120.32},{"name":"崂山","lat":36.15,"lng":120.65},{"name":"八大关","lat":36.05,"lng":120.36}],"brief":"黄海之滨的明珠，万国建筑的经典。"},{"name":"烟台市","province":"山东","type":"tourist","lat":37.4635,"lng":121.448,"tags":["蓬莱仙境","八仙过海","葡萄酒","长岛"],"attractions":[{"name":"蓬莱阁","lat":37.82,"lng":120.76},{"name":"长岛","lat":37.92,"lng":120.73}],"brief":"人间仙境蓬莱所在。"},{"name":"威海市","province":"山东","type":"tourist","lat":37.5131,"lng":122.1204,"tags":["刘公岛","成山头","最宜居城市"],"attractions":[{"name":"刘公岛","lat":37.5,"lng":122.18},{"name":"成山头","lat":37.4,"lng":122.7}],"brief":"中国最宜居城市之一。"},{"name":"洛阳市","province":"河南","type":"tourist","lat":34.6197,"lng":112.4539,"tags":["龙门石窟","白马寺","牡丹花","十三朝古都"],"attractions":[{"name":"龙门石窟","lat":34.56,"lng":112.47},{"name":"白马寺","lat":34.72,"lng":112.61}],"brief":"唯有牡丹真国色，花开时节动京城。"},{"name":"开封市","province":"河南","type":"tourist","lat":34.7975,"lng":114.3076,"tags":["清明上河园","大宋皇城","菊花","灌汤包"],"attractions":[{"name":"清明上河园","lat":34.8,"lng":114.34},{"name":"大相国寺","lat":34.79,"lng":114.35}],"brief":"琪树明霞五凤楼，夷门自古帝王州。"},{"name":"大同市","province":"山西","type":"tourist","lat":40.0768,"lng":113.3001,"tags":["云冈石窟","悬空寺","华严寺"],"attractions":[{"name":"云冈石窟","lat":40.11,"lng":113.13},{"name":"悬空寺","lat":39.66,"lng":113.71}],"brief":"北魏故都，世界文化遗产云冈石窟。"},{"name":"平遥古城","province":"山西","type":"tourist","lat":37.1899,"lng":112.1763,"tags":["平遥古城","晋商文化","票号"],"attractions":[{"name":"平遥古城","lat":37.2,"lng":112.18},{"name":"双林寺","lat":37.17,"lng":112.13}],"brief":"中国保存最完整的明清古城。"},{"name":"桂林市","province":"广西","type":"tourist","lat":25.2736,"lng":110.29,"tags":["漓江","喀斯特","阳朔","象鼻山"],"attractions":[{"name":"漓江","lat":25.06,"lng":110.46},{"name":"阳朔西街","lat":24.78,"lng":110.49},{"name":"龙脊梯田","lat":25.76,"lng":110.09}],"brief":"桂林山水甲天下，世界喀斯特地貌典范。"},{"name":"北海市","province":"广西","type":"tourist","lat":21.4733,"lng":109.1192,"tags":["银滩","涠洲岛","候鸟城市"],"attractions":[{"name":"银滩","lat":21.42,"lng":109.15},{"name":"涠洲岛","lat":21.04,"lng":109.11}],"brief":"北部湾畔的明珠，天下第一滩银滩。"},{"name":"三亚市","province":"海南","type":"tourist","lat":18.2528,"lng":109.512,"tags":["热带海滨","天涯海角","亚龙湾","免税"],"attractions":[{"name":"亚龙湾","lat":18.22,"lng":109.64},{"name":"天涯海角","lat":18.29,"lng":109.35},{"name":"蜈支洲岛","lat":18.31,"lng":109.77}],"brief":"东方夏威夷，中国最南端的热带滨海旅游城市。"},{"name":"丽江市","province":"云南","type":"tourist","lat":26.8721,"lng":100.2299,"tags":["丽江古城","玉龙雪山","纳西族","茶马古道"],"attractions":[{"name":"丽江古城","lat":26.87,"lng":100.24},{"name":"玉龙雪山","lat":27.1,"lng":100.18},{"name":"泸沽湖","lat":27.7,"lng":100.78}],"brief":"世界文化遗产古城，纳西族文化中心。"},{"name":"大理市","province":"云南","type":"tourist","lat":25.6065,"lng":100.2676,"tags":["洱海","苍山","白族","风花雪月"],"attractions":[{"name":"洱海","lat":25.75,"lng":100.2},{"name":"大理古城","lat":25.68,"lng":100.16},{"name":"崇圣寺三塔","lat":25.7,"lng":100.15}],"brief":"下关风，上关花，苍山雪，洱海月。"},{"name":"香格里拉市","province":"云南","type":"tourist","lat":27.823,"lng":99.706,"tags":["香格里拉","藏族","独克宗","普达措"],"attractions":[{"name":"普达措国家公园","lat":27.85,"lng":99.95},{"name":"松赞林寺","lat":27.86,"lng":99.7}],"brief":"消失的地平线，心中的日月。"},{"name":"腾冲市","province":"云南","type":"tourist","lat":25.0205,"lng":98.4909,"tags":["火山热海","和顺古镇","翡翠","银杏"],"attractions":[{"name":"热海","lat":25.03,"lng":98.46},{"name":"和顺古镇","lat":25.01,"lng":98.47}],"brief":"极边第一城，火山地热与古镇的完美结合。"},{"name":"张家界市","province":"湖南","type":"tourist","lat":29.117,"lng":110.4783,"tags":["张家界","天门山","阿凡达","玻璃栈道"],"attractions":[{"name":"张家界国家森林公园","lat":29.33,"lng":110.42},{"name":"天门山","lat":29.05,"lng":110.48}],"brief":"阿凡达悬浮山原型所在，世界自然遗产。"},{"name":"凤凰古城","province":"湖南","type":"tourist","lat":27.9482,"lng":109.5989,"tags":["凤凰古城","沱江","沈从文","苗族"],"attractions":[{"name":"凤凰古城","lat":27.95,"lng":109.6},{"name":"南方长城","lat":28,"lng":109.55}],"brief":"沈从文笔下边城的原型，中国最美小城。"},{"name":"岳阳市","province":"湖南","type":"tourist","lat":29.3568,"lng":113.1289,"tags":["岳阳楼","洞庭湖","君山"],"attractions":[{"name":"岳阳楼","lat":29.382,"lng":113.089},{"name":"君山岛","lat":29.36,"lng":113.01}],"brief":"先天下之忧而忧，洞庭湖畔千年名楼。"},{"name":"遵义市","province":"贵州","type":"tourist","lat":27.7258,"lng":106.9272,"tags":["遵义会议","茅台酒","赤水丹霞"],"attractions":[{"name":"遵义会议会址","lat":27.69,"lng":106.92},{"name":"茅台镇","lat":27.85,"lng":106.38}],"brief":"红色圣地，国酒茅台之乡。"},{"name":"敦煌市","province":"甘肃","type":"tourist","lat":40.1411,"lng":94.6619,"tags":["莫高窟","月牙泉","丝绸之路","飞天"],"attractions":[{"name":"莫高窟","lat":40.04,"lng":94.81},{"name":"鸣沙山月牙泉","lat":40.09,"lng":94.67}],"brief":"丝绸之路上的明珠，东方卢浮宫。"},{"name":"嘉峪关市","province":"甘肃","type":"tourist","lat":39.772,"lng":98.2894,"tags":["嘉峪关","长城终点","天下第一雄关"],"attractions":[{"name":"嘉峪关关城","lat":39.8,"lng":98.22}],"brief":"明长城西端起点的天下第一雄关。"},{"name":"喀什市","province":"新疆","type":"tourist","lat":39.4677,"lng":75.9898,"tags":["喀什古城","帕米尔高原","维吾尔族"],"attractions":[{"name":"喀什古城","lat":39.47,"lng":75.99},{"name":"帕米尔高原","lat":38,"lng":75}],"brief":"不到喀什不算到新疆。"},{"name":"吐鲁番市","province":"新疆","type":"tourist","lat":42.9477,"lng":89.1841,"tags":["火焰山","葡萄沟","坎儿井","西游记"],"attractions":[{"name":"火焰山","lat":42.92,"lng":89.58},{"name":"葡萄沟","lat":42.92,"lng":89.25}],"brief":"西游记火焰山所在地，中国最热的城市。"},{"name":"延吉市","province":"吉林","type":"tourist","lat":42.891,"lng":129.5087,"tags":["朝鲜族","冷面","长白山","双语城市"],"attractions":[{"name":"延边大学","lat":42.91,"lng":129.5}],"brief":"朝鲜族文化中心，不出国门体验异国风情。"},{"name":"漠河市","province":"黑龙江","type":"tourist","lat":53.4866,"lng":122.5371,"tags":["北极村","极光","中国最北端"],"attractions":[{"name":"北极村","lat":53.48,"lng":122.36}],"brief":"中国最北端的城市，可以观测北极光。"},{"name":"庐山","province":"江西","type":"tourist","lat":29.5726,"lng":115.9814,"tags":["庐山","鄱阳湖","白鹿洞书院"],"attractions":[{"name":"庐山风景区","lat":29.57,"lng":115.98}],"brief":"不识庐山真面目，世界文化景观遗产。"},{"name":"景德镇市","province":"江西","type":"tourist","lat":29.2927,"lng":117.1783,"tags":["瓷器","千年瓷都","青花瓷"],"attractions":[{"name":"古窑民俗博览区","lat":29.29,"lng":117.21},{"name":"瑶里古镇","lat":29.53,"lng":117.59}],"brief":"千年瓷都，白如玉明如镜薄如纸声如磬。"},{"name":"曲阜市","province":"山东","type":"tourist","lat":35.5808,"lng":116.9864,"tags":["孔子","三孔","儒家文化"],"attractions":[{"name":"孔庙","lat":35.6,"lng":116.99},{"name":"孔林","lat":35.61,"lng":117}],"brief":"孔子故里，东方圣城。"},{"name":"泰安市","province":"山东","type":"tourist","lat":36.2,"lng":117.0876,"tags":["泰山","封禅","日出","一览众山小"],"attractions":[{"name":"泰山","lat":36.25,"lng":117.1}],"brief":"五岳独尊，历代帝王封禅之地。"},{"name":"承德市","province":"河北","type":"tourist","lat":40.9519,"lng":117.9634,"tags":["避暑山庄","外八庙","坝上草原"],"attractions":[{"name":"避暑山庄","lat":40.99,"lng":117.94},{"name":"木兰围场","lat":42.21,"lng":117.28}],"brief":"清代皇帝避暑胜地，中国最大的皇家园林。"},{"name":"秦皇岛市","province":"河北","type":"tourist","lat":39.9354,"lng":119.6005,"tags":["北戴河","山海关","长城入海"],"attractions":[{"name":"山海关","lat":40.01,"lng":119.76},{"name":"北戴河","lat":39.83,"lng":119.48}],"brief":"天下第一关，长城唯一入海处。"},{"name":"宜昌市","province":"湖北","type":"tourist","lat":30.6907,"lng":111.2865,"tags":["三峡大坝","西陵峡","清江画廊"],"attractions":[{"name":"三峡大坝","lat":30.83,"lng":111},{"name":"三峡人家","lat":30.86,"lng":111.13}],"brief":"三峡门户，世界最大水利枢纽所在地。"},{"name":"襄阳市","province":"湖北","type":"tourist","lat":32.009,"lng":112.1224,"tags":["襄阳古城","古隆中","三国文化"],"attractions":[{"name":"襄阳古城","lat":32.02,"lng":112.15},{"name":"古隆中","lat":32,"lng":112.06}],"brief":"铁打的襄阳，三国文化核心地带。"},{"name":"吉林市","province":"吉林","type":"tourist","lat":43.8378,"lng":126.5495,"tags":["雾凇","松花湖","满族文化"],"attractions":[{"name":"雾凇岛","lat":43.88,"lng":126.6}],"brief":"中国四大自然奇观之一的吉林雾凇。"},{"name":"峨眉山市","province":"四川","type":"tourist","lat":29.6012,"lng":103.4845,"tags":["峨眉山","金顶","普贤菩萨","佛教圣地"],"attractions":[{"name":"峨眉山金顶","lat":29.52,"lng":103.34}],"brief":"佛教四大名山之一，峨眉天下秀。"},{"name":"乐山市","province":"四川","type":"tourist","lat":29.5521,"lng":103.7656,"tags":["乐山大佛","三江汇流","跷脚牛肉"],"attractions":[{"name":"乐山大佛","lat":29.546,"lng":103.77}],"brief":"山是一尊佛，佛是一座山。"},{"name":"武夷山市","province":"福建","type":"tourist","lat":27.7567,"lng":118.0353,"tags":["武夷山","大红袍","九曲溪","丹霞"],"attractions":[{"name":"武夷山风景区","lat":27.72,"lng":117.98},{"name":"九曲溪","lat":27.74,"lng":117.99}],"brief":"世界自然与文化双遗产，大红袍发源地。"},{"name":"西双版纳","province":"云南","type":"tourist","lat":22.0066,"lng":100.7972,"tags":["热带雨林","傣族","泼水节","亚洲象"],"attractions":[{"name":"热带植物园","lat":21.92,"lng":101.25},{"name":"野象谷","lat":22.15,"lng":100.88}],"brief":"中国唯一的热带雨林自然保护区。"},{"name":"九寨沟县","province":"四川","type":"tourist","lat":33.2522,"lng":104.2439,"tags":["九寨沟","翠海","叠瀑","彩林"],"attractions":[{"name":"九寨沟风景区","lat":33.26,"lng":103.92},{"name":"黄龙风景区","lat":32.75,"lng":103.83}],"brief":"九寨归来不看水，人间仙境的代名词。"}];
+
+// ===== 全局状态 =====
+const STATE = {
+  gps: null, currentCity: null, currentAttraction: null,
+  autoMode: true, lastNarrationTime: 0, isSpeaking: false,
+  history: JSON.parse(localStorage.getItem("roadtrip_history") || "[]"),
+  narrationCache: {}
+};
+
+// ===== DeepSeek API =====
+function getApiKey() { return localStorage.getItem("rt_apikey") || ""; }
+function saveKey() {
+  const key = document.getElementById("apiKeyInput").value.trim();
+  localStorage.setItem("rt_apikey", key);
+  showToast(key ? "API Key 已保存" : "API Key 已清空");
+}
+
+async function callAI(prompt) {
+  const key = getApiKey();
+  if (!key) return "请先在设置中填入 DeepSeek API Key。";
+  const resp = await fetch("https://api.deepseek.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
+    body: JSON.stringify({
+      model: "deepseek-chat",
+      messages: [
+        { role: "system", content: "你是车载AI导游。回答口语化、亲切自然，80-150字，讲有趣的冷知识。不用markdown格式。" },
+        { role: "user", content: prompt }
+      ],
+      max_tokens: 500, temperature: 0.8
+    })
+  });
+  if (!resp.ok) {
+    if (resp.status === 401) return "API Key 无效，请检查设置。";
+    return "AI暂时不可用(" + resp.status + ")，请稍后重试。";
+  }
+  const data = await resp.json();
+  return data.choices[0].message.content;
+}
+
+// ===== 设置 =====
+function getSettings() {
+  return {
+    triggerDistance: parseFloat(localStorage.getItem("rt_trigger") || "5"),
+    autoInterval: parseFloat(localStorage.getItem("rt_interval") || "5"),
+    speechRate: parseFloat(localStorage.getItem("rt_rate") || "1.0")
+  };
+}
+function saveSettings() {
+  localStorage.setItem("rt_trigger", document.getElementById("triggerDistance").value);
+  localStorage.setItem("rt_interval", document.getElementById("autoInterval").value);
+  localStorage.setItem("rt_rate", document.getElementById("speechRate").value);
+  showToast("设置已保存");
+}
+function loadSettingsUI() {
+  var s = getSettings();
+  document.getElementById("triggerDistance").value = s.triggerDistance;
+  document.getElementById("autoInterval").value = s.autoInterval;
+  document.getElementById("speechRate").value = s.speechRate;
+  document.getElementById("apiKeyInput").value = getApiKey();
+}
+
+// ===== UI =====
+function toggleSettings() {
+  var panel = document.getElementById("settingsPanel");
+  var overlay = document.getElementById("overlay");
+  if (panel.classList.contains("open")) { panel.classList.remove("open"); overlay.classList.remove("show"); }
+  else { loadSettingsUI(); panel.classList.add("open"); overlay.classList.add("show"); }
+}
+function showToast(msg) {
+  var t = document.getElementById("toast"); t.textContent = msg; t.classList.add("show");
+  setTimeout(function(){ t.classList.remove("show"); }, 2000);
+}
+function updateGPSStatus(ok) {
+  var dot = document.getElementById("gpsDot"), st = document.getElementById("gpsStatus");
+  if (ok && STATE.gps) { dot.className = "dot gps"; st.textContent = STATE.gps.lat.toFixed(2) + ", " + STATE.gps.lng.toFixed(2); }
+  else { dot.className = "dot nogps"; st.textContent = "等待定位..."; }
+}
+
+// ===== GPS =====
+function startGPS() {
+  if (!navigator.geolocation) { updateGPSStatus(false); return; }
+  navigator.geolocation.watchPosition(
+    function(pos) { STATE.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude }; updateGPSStatus(true); findNearestCity(); },
+    function() { updateGPSStatus(false); },
+    { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
+  );
+}
+
+// ===== 距离计算 =====
+function haversine(lat1, lng1, lat2, lng2) {
+  var R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
+  var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// ===== 城市匹配 =====
+function findNearestCity() {
+  if (!STATE.gps) return;
+  var best = null, bestDist = Infinity, bestAttr = null, bestAttrDist = Infinity;
+  for (var i = 0; i < CITY_DATA.length; i++) {
+    var city = CITY_DATA[i];
+    var dist = haversine(STATE.gps.lat, STATE.gps.lng, city.lat, city.lng);
+    if (dist < bestDist) { bestDist = dist; best = city; }
+    if (city.attractions) for (var j = 0; j < city.attractions.length; j++) {
+      var a = city.attractions[j];
+      var ad = haversine(STATE.gps.lat, STATE.gps.lng, a.lat, a.lng);
+      if (ad < bestAttrDist) { bestAttrDist = ad; bestAttr = { cityName: city.name, name: a.name }; }
+    }
+  }
+  var s = getSettings();
+  var prevCity = STATE.currentCity ? STATE.currentCity.name : null;
+  var prevAttr = STATE.currentAttraction ? STATE.currentAttraction.name : null;
+  STATE.currentCity = (best && bestDist <= s.triggerDistance) ? best : null;
+  if (STATE.currentCity) STATE.currentCity._distance = bestDist;
+  STATE.currentAttraction = (bestAttr && bestAttrDist <= 2) ? bestAttr : null;
+  updateLocationUI();
+  if (STATE.autoMode && STATE.currentCity) {
+    var now = Date.now();
+    if ((prevCity !== STATE.currentCity.name || (STATE.currentAttraction && prevAttr !== STATE.currentAttraction.name)) && (now - STATE.lastNarrationTime) > s.autoInterval * 60000) {
+      requestNarration();
+    }
+  }
+}
+
+function updateLocationUI() {
+  var c = STATE.currentCity;
+  document.getElementById("cityName").textContent = c ? c.name : "--- 未进入城市范围 ---";
+  document.getElementById("cityProvince").textContent = c ? c.province + " · " + c.type : "";
+  document.getElementById("cityTags").innerHTML = c ? (c.tags||[]).map(function(t){ return '<span class="tag">'+t+'</span>'; }).join("") : "";
+  var distText = c ? "距市中心约 " + (c._distance ? c._distance.toFixed(1) : "?") + " 公里" : "继续行驶，我会自动发现沿途的城市和景点";
+  if (STATE.currentAttraction) distText += " · 靠近「" + STATE.currentAttraction.name + "」";
+  document.getElementById("cityDistance").textContent = distText;
+}
+
+// ===== AI 讲解 =====
+async function requestNarration() {
+  if (STATE.isSpeaking) { stopSpeaking(); return; }
+  var btn = document.getElementById("btnNarrate");
+  btn.disabled = true; btn.textContent = "思考中...";
+  try {
+    var prompt = "";
+    if (STATE.currentAttraction) prompt = "我正开车经过" + STATE.currentCity.name + "的「" + STATE.currentAttraction.name + "」，请用聊天的方式给我讲讲这个地方有什么特别的、好玩的趣事。";
+    else if (STATE.currentCity) prompt = "我正开车经过" + STATE.currentCity.name + "（标签：" + (STATE.currentCity.tags||[]).join("、") + "），请用聊天的方式给我讲讲这座城市最有意思的地方。";
+    else prompt = "请随便聊一个中国有趣的旅行目的地。";
+
+    var cacheKey = (STATE.currentCity ? STATE.currentCity.name : "") + "|" + (STATE.currentAttraction ? STATE.currentAttraction.name : "");
+    var text = "";
+    if (STATE.narrationCache[cacheKey] && Date.now() - STATE.narrationCache[cacheKey].time < 3600000) {
+      text = STATE.narrationCache[cacheKey].text;
+    } else {
+      text = await callAI(prompt);
+      STATE.narrationCache[cacheKey] = { text: text, time: Date.now() };
+    }
+    showNarration(text);
+    speakNarration(text);
+    STATE.lastNarrationTime = Date.now();
+    addHistory(text);
+    btn.textContent = "停止";
+  } catch(e) { showToast("讲解失败，请检查网络"); }
+  btn.disabled = false;
+}
+
+function showNarration(text) {
+  document.getElementById("narrationText").className = "content";
+  document.getElementById("narrationText").textContent = text;
+  var label = "";
+  if (STATE.currentAttraction) label = "—— " + STATE.currentCity.name + " · " + STATE.currentAttraction.name;
+  else if (STATE.currentCity) label = "—— " + STATE.currentCity.name;
+  document.getElementById("narrationAttr").textContent = label;
+}
+
+// ===== TTS =====
+function speakNarration(text) {
+  stopSpeaking();
+  if (!window.speechSynthesis) { showToast("浏览器不支持语音播报"); return; }
+  var utt = new SpeechSynthesisUtterance(text);
+  utt.lang = "zh-CN"; utt.rate = getSettings().speechRate; utt.volume = 1.0;
+  var voices = speechSynthesis.getVoices();
+  var zh = voices.find(function(v){ return v.lang.startsWith("zh-CN") || v.lang.startsWith("zh-TW"); });
+  if (zh) utt.voice = zh;
+  utt.onstart = function() { STATE.isSpeaking = true; document.getElementById("speakingBar").style.display = "flex"; };
+  utt.onend = utt.onerror = function() { STATE.isSpeaking = false; document.getElementById("speakingBar").style.display = "none"; document.getElementById("btnNarrate").textContent = "讲讲这里"; };
+  speechSynthesis.speak(utt);
+}
+function stopSpeaking() {
+  if (speechSynthesis.speaking) speechSynthesis.cancel();
+  STATE.isSpeaking = false;
+  document.getElementById("speakingBar").style.display = "none";
+  document.getElementById("btnNarrate").textContent = "讲讲这里";
+}
+
+// ===== 自动模式 =====
+function toggleAuto() {
+  STATE.autoMode = !STATE.autoMode;
+  var btn = document.getElementById("btnAuto");
+  btn.className = STATE.autoMode ? "btn btn-secondary" : "btn btn-danger";
+  btn.textContent = STATE.autoMode ? "自动模式 · 开" : "自动模式 · 关";
+  showToast(STATE.autoMode ? "自动讲解已开启" : "自动讲解已关闭");
+}
+
+// ===== 历史 =====
+function addHistory(text) {
+  STATE.history.unshift({ time: new Date().toLocaleTimeString("zh-CN"), text: text, city: STATE.currentCity ? STATE.currentCity.name : null, attraction: STATE.currentAttraction ? STATE.currentAttraction.name : null });
+  if (STATE.history.length > 50) STATE.history.length = 50;
+  localStorage.setItem("roadtrip_history", JSON.stringify(STATE.history));
+  renderHistory();
+}
+function renderHistory() {
+  var card = document.getElementById("historyCard"), container = document.getElementById("historyList");
+  if (!STATE.history.length) { card.style.display = "none"; return; }
+  card.style.display = "block";
+  container.innerHTML = STATE.history.slice(0, 10).map(function(h, i){
+    return '<div class="history-item" onclick="replayHistory('+i+')"><div class="time">'+h.time+' · '+(h.city||"?")+'</div><div class="text">'+h.text+'</div></div>';
+  }).join("");
+}
+function replayHistory(i) { var h = STATE.history[i]; if (!h) return; showNarration(h.text); speakNarration(h.text); }
+function clearHistory() { STATE.history = []; localStorage.removeItem("roadtrip_history"); renderHistory(); showToast("已清除"); }
+
+// ===== 初始化 =====
+if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = function(){ speechSynthesis.getVoices(); }; }
+if (!getApiKey()) { setTimeout(function(){ toggleSettings(); }, 500); }
+startGPS(); renderHistory();
+setInterval(function(){ if (STATE.gps) findNearestCity(); }, 10000);
+</script>
+</body>
+</html>
