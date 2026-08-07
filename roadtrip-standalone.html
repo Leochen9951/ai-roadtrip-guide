@@ -241,8 +241,8 @@ function saveKey() {
 }
 
 async function callAI(prompt) {
-  const key = getApiKey();
-  if (!key) return "请先在设置中填入 DeepSeek API Key。";
+const key = getApiKey().trim(); console.log('[路书] Key长度:', key.length);
+if (!key) { console.warn('[路书] Key为空'); return "请先在设置中填入 DeepSeek API Key。"; }
   const resp = await fetch("https://api.deepseek.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
@@ -256,10 +256,10 @@ async function callAI(prompt) {
     })
   });
   if (!resp.ok) {
-    if (resp.status === 401) return "API Key 无效，请检查设置。";
-    return "AI暂时不可用(" + resp.status + ")，请稍后重试。";
+if (resp.status === 401) { console.error('[路书] 401-Key无效'); return "API Key 无效，请检查设置（注意不要有多余空格）。"; }
+console.error('[路书] HTTP错误:', resp.status); return "AI暂时不可用(错误码" + resp.status + ")，请稍后重试。";
   }
-  const data = await resp.json();
+const data = await resp.json(); console.log('[路书] AI返回, 长度:', data.choices?.[0]?.message?.content?.length || 0);
   return data.choices[0].message.content;
 }
 
@@ -382,7 +382,7 @@ async function requestNarration() {
     STATE.lastNarrationTime = Date.now();
     addHistory(text);
     btn.textContent = "停止";
-  } catch(e) { showToast("讲解失败，请检查网络"); }
+} catch(e) { console.error('[路书] 异常:', e.message); showToast("讲解失败: " + e.message); }
   btn.disabled = false;
 }
 
