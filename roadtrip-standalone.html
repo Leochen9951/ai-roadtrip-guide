@@ -351,12 +351,12 @@ if (STATE.currentCity) STATE.currentCity._distance = bestDist;
 
 function updateLocationUI() {
   var c = STATE.currentCity;
-  document.getElementById("cityName").textContent = c ? c.name : "--- 未进入城市范围 ---";
+document.getElementById("cityName").textContent = c ? c.name : "--- 定位中 ---";
   document.getElementById("cityProvince").textContent = c ? c.province + " · " + c.type : "";
   document.getElementById("cityTags").innerHTML = c ? (c.tags||[]).map(function(t){ return '<span class="tag">'+t+'</span>'; }).join("") : "";
   var distText = c ? "距市中心约 " + (c._distance ? c._distance.toFixed(1) : "?") + " 公里" : "继续行驶，我会自动发现沿途的城市和景点";
   if (STATE.currentAttraction) distText += " · 靠近「" + STATE.currentAttraction.name + "」";
-  document.getElementById("cityDistance").textContent = distText;
+var distText = c ? "距市中心约 " + (c._distance ? c._distance.toFixed(1) : "?") + " 公里" : "正在获取位置...";
 }
 
 // ===== AI 讲解 =====
