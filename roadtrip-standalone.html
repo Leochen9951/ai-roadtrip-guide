@@ -166,8 +166,9 @@ body{
     <div class="content placeholder" id="narrationText">点击下方按钮，让我给你讲讲这里的故事。</div>
     <div class="attribution" id="narrationAttr"></div>
   </div>
+  <div style="margin-top:8px;font-size:12px;color:var(--text2);cursor:pointer;text-align:center" id="historyToggle" onclick="toggleHistory()">📜 查看讲解记录</div>
   <div class="narration-card" id="historyCard" style="display:none">
-    <div class="label">讲解记录</div>
+    <div class="label">📜 讲解记录</div>
     <div id="historyList"></div>
   </div>
 </div>
@@ -216,6 +217,12 @@ body{
       </select>
     </div>
     <button class="btn btn-secondary" onclick="clearHistory()">清除讲解记录</button>
+    <div class="setting-group">
+      <label>🧪 测试模式：强制定位到城市</label>
+      <select id="debugCity" onchange="debugSetCity()">
+        <option value="">关闭（使用真实GPS）</option>
+      </select>
+    </div>
   </div>
 </div>
 
@@ -408,6 +415,7 @@ function speakNarration(text) {
   var sentences = text.split(/[。！？\n]+/).filter(function(s){ return s.trim().length > 0 })
   if (sentences.length === 0) sentences = [text]
   var idx = 0
+  document.getElementById("btnNarrate").textContent = "停止";
   STATE.isSpeaking = true
   document.getElementById("speakingBar").style.display = "flex"
   function speakNext() {
@@ -429,8 +437,8 @@ function speakNarration(text) {
   speakNext()
 }
 function stopSpeaking() {
-  if (speechSynthesis.speaking) speechSynthesis.cancel();
   STATE.isSpeaking = false;
+  if (speechSynthesis.speaking) speechSynthesis.cancel();
   document.getElementById("speakingBar").style.display = "none";
   document.getElementById("btnNarrate").textContent = "讲讲这里";
 }
@@ -453,14 +461,19 @@ function addHistory(text) {
 }
 function renderHistory() {
   var card = document.getElementById("historyCard"), container = document.getElementById("historyList");
-  if (!STATE.history.length) { card.style.display = "none"; return; }
-  card.style.display = "block";
+  if (!STATE.history.length) { return; }
+  if (card.style.display !== "none") { card.style.display = "block"; }
   container.innerHTML = STATE.history.slice(0, 10).map(function(h, i){
     return '<div class="history-item" onclick="replayHistory('+i+')"><div class="time">'+h.time+' · '+(h.city||"?")+'</div><div class="text">'+h.text+'</div></div>';
   }).join("");
 }
 function replayHistory(i) { var h = STATE.history[i]; if (!h) return; showNarration(h.text); speakNarration(h.text); }
 function clearHistory() { STATE.history = []; localStorage.removeItem("roadtrip_history"); renderHistory(); showToast("已清除"); }
+function toggleHistory() {
+  var card = document.getElementById("historyCard"), btn = document.getElementById("historyToggle");
+  if (card.style.display === "none") { card.style.display = "block"; btn.textContent = "📜 收起记录"; }
+  else { card.style.display = "none"; btn.textContent = "📜 查看讲解记录"; }
+}
 
 // ===== 初始化 =====
 if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = function(){ speechSynthesis.getVoices(); }; }
