@@ -402,16 +402,31 @@ function showNarration(text) {
 
 // ===== TTS =====
 function speakNarration(text) {
-  stopSpeaking();
-  if (!window.speechSynthesis) { showToast("浏览器不支持语音播报"); return; }
-  var utt = new SpeechSynthesisUtterance(text);
-  utt.lang = "zh-CN"; utt.rate = getSettings().speechRate; utt.volume = 1.0;
-  var voices = speechSynthesis.getVoices();
-  var zh = voices.find(function(v){ return v.lang.startsWith("zh-CN") || v.lang.startsWith("zh-TW"); });
-  if (zh) utt.voice = zh;
-  utt.onstart = function() { STATE.isSpeaking = true; document.getElementById("speakingBar").style.display = "flex"; };
-  utt.onend = utt.onerror = function() { STATE.isSpeaking = false; document.getElementById("speakingBar").style.display = "none"; document.getElementById("btnNarrate").textContent = "讲讲这里"; };
-  speechSynthesis.speak(utt);
+  stopSpeaking()
+  if (!window.speechSynthesis) { showToast("浏览器不支持语音播报"); return }
+  // 按句子分割，逐句播放，避免长文本在手机上被截断
+  var sentences = text.split(/[。！？\n]+/).filter(function(s){ return s.trim().length > 0 })
+  if (sentences.length === 0) sentences = [text]
+  var idx = 0
+  STATE.isSpeaking = true
+  document.getElementById("speakingBar").style.display = "flex"
+  function speakNext() {
+    if (idx >= sentences.length || !STATE.isSpeaking) {
+      STATE.isSpeaking = false
+      document.getElementById("speakingBar").style.display = "none"
+      document.getElementById("btnNarrate").textContent = "讲讲这里"
+      return
+    }
+    var utt = new SpeechSynthesisUtterance(sentences[idx])
+    utt.lang = "zh-CN"; utt.rate = getSettings().speechRate; utt.volume = 1.0
+    var voices = speechSynthesis.getVoices()
+    var zh = voices.find(function(v){ return v.lang.startsWith("zh-CN") || v.lang.startsWith("zh-TW") })
+    if (zh) utt.voice = zh
+    utt.onend = function(){ idx++; speakNext() }
+    utt.onerror = function(){ idx++; speakNext() }
+    speechSynthesis.speak(utt)
+  }
+  speakNext()
 }
 function stopSpeaking() {
   if (speechSynthesis.speaking) speechSynthesis.cancel();
@@ -449,9 +464,22 @@ function clearHistory() { STATE.history = []; localStorage.removeItem("roadtrip_
 
 // ===== 初始化 =====
 if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = function(){ speechSynthesis.getVoices(); }; }
-if (!getApiKey()) { setTimeout(function(){ toggleSettings(); }, 500); }
-startGPS(); renderHistory();
-setInterval(function(){ if (STATE.gps) findNearestCity(); }, 10000);
+// 开始旅程按钮（解决手机浏览器音频策略：需要用户手势授权）
+var started = false;
+var startOverlay = document.createElement('div');
+startOverlay.id = 'startOverlay';
+startOverlay.innerHTML = '<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px"><div style="font-size:48px">🚗</div><div style="font-size:22px;font-weight:700;color:var(--text)">AI 路书 · 车载导游</div><div style="font-size:14px;color:var(--text2);text-align:center;line-height:1.8">开车时自动为你讲解<br>沿途城市和景点的故事</div><button onclick="doStart()" style="background:var(--accent);color:#fff;border:none;padding:16px 48px;border-radius:24px;font-size:18px;font-weight:600;cursor:pointer;margin-top:12px">开始旅程</button></div>';
+document.body.appendChild(startOverlay);
+function doStart(){
+  started = true;
+  if (!getApiKey()) { setTimeout(function(){ toggleSettings(); }, 500); }
+  // 用一次真实的用户点击来"解锁"语音合成
+  var u = new SpeechSynthesisUtterance(''); u.volume = 0;
+  speechSynthesis.speak(u);
+  startGPS(); renderHistory();
+  setInterval(function(){ if (STATE.gps) findNearestCity(); }, 10000);
+  document.getElementById('startOverlay').style.display = 'none';
+}
 </script>
 </body>
 </html>
