@@ -341,7 +341,9 @@ STATE.currentCity = best || null;
 if (STATE.currentCity) STATE.currentCity._distance = bestDist;
   STATE.currentAttraction = (bestAttr && bestAttrDist <= 2) ? bestAttr : null;
   updateLocationUI();
-  if (STATE.autoMode && STATE.currentCity) {
+// 首次定位到城市时自动讲解，后续按间隔触发
+var isFirstTime = !prevCity && STATE.currentCity;
+if (STATE.autoMode && STATE.currentCity && (isFirstTime || ((prevCity !== STATE.currentCity.name || (STATE.currentAttraction && prevAttr !== STATE.currentAttraction.name)) && (now - STATE.lastNarrationTime) > s.autoInterval * 60000))) {
     var now = Date.now();
     if ((prevCity !== STATE.currentCity.name || (STATE.currentAttraction && prevAttr !== STATE.currentAttraction.name)) && (now - STATE.lastNarrationTime) > s.autoInterval * 60000) {
       requestNarration();
