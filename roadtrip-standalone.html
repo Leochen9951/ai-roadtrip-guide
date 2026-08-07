@@ -194,7 +194,8 @@ body{
         <option value="3">进入城市3公里内</option>
         <option value="5" selected>进入城市5公里内</option>
         <option value="10">进入城市10公里内</option>
-        <option value="20">进入城市20公里内</option>
+        <option value="30">进入城市30公里内</option>
+        <option value="50">进入城市50公里内</option>
       </select>
     </div>
     <div class="setting-group">
@@ -336,8 +337,8 @@ function findNearestCity() {
   var s = getSettings();
   var prevCity = STATE.currentCity ? STATE.currentCity.name : null;
   var prevAttr = STATE.currentAttraction ? STATE.currentAttraction.name : null;
-  STATE.currentCity = (best && bestDist <= s.triggerDistance) ? best : null;
-  if (STATE.currentCity) STATE.currentCity._distance = bestDist;
+STATE.currentCity = best || null;
+if (STATE.currentCity) STATE.currentCity._distance = bestDist;
   STATE.currentAttraction = (bestAttr && bestAttrDist <= 2) ? bestAttr : null;
   updateLocationUI();
   if (STATE.autoMode && STATE.currentCity) {
