@@ -312,9 +312,11 @@ function updateGPSStatus(ok) {
 
 // ===== GPS =====
 function startGPS() {
+  if (debugOverride) return; // 测试模式不启真GPS
   if (!navigator.geolocation) { updateGPSStatus(false); return; }
   navigator.geolocation.watchPosition(
     function(pos) { STATE.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude }; updateGPSStatus(true); findNearestCity(); },
+    function(pos) { if (!debugOverride) STATE.gps = { lat: pos.coords.latitude, lng: pos.coords.longitude }; if (!debugOverride) updateGPSStatus(true); if (!debugOverride) findNearestCity(); },
     function() { updateGPSStatus(false); },
     { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
   );
@@ -470,6 +472,33 @@ function renderHistory() {
 function replayHistory(i) { var h = STATE.history[i]; if (!h) return; showNarration(h.text); speakNarration(h.text); }
 function clearHistory() { STATE.history = []; localStorage.removeItem("roadtrip_history"); renderHistory(); showToast("已清除"); }
 function toggleHistory() {
+// ===== 测试模式 =====
+function initDebugCities() {
+  var sel = document.getElementById("debugCity");
+  CITY_DATA.forEach(function(c){
+    var opt = document.createElement("option");
+    opt.value = c.lat + "," + c.lng + "," + c.name;
+    opt.textContent = c.name + " (" + c.province + ")";
+    sel.appendChild(opt);
+  });
+}
+var debugOverride = null;
+function debugSetCity() {
+  var val = document.getElementById('debugCity').value;
+  if (!val) { debugOverride = null; showToast('已切回真实GPS'); return; }
+  var parts = val.split(",");
+  debugOverride = { lat: parseFloat(parts[0]), lng: parseFloat(parts[1]), name: parts[2] };
+  STATE.gps = { lat: debugOverride.lat, lng: debugOverride.lng };
+  updateGPSStatus(true);
+  findNearestCity();
+  showToast("已定位到: " + debugOverride.name);
+  // 关闭设置面板
+  document.getElementById("settingsPanel").classList.remove("open");
+  document.getElementById("overlay").classList.remove("show");
+  // 模拟点击开始旅程（如果还没点过）
+  if (!started) { doStart(); }
+  else { setTimeout(function(){ requestNarration(); }, 500); }
+}
   var card = document.getElementById("historyCard"), btn = document.getElementById("historyToggle");
   if (card.style.display === "none") { card.style.display = "block"; btn.textContent = "📜 收起记录"; }
   else { card.style.display = "none"; btn.textContent = "📜 查看讲解记录"; }
@@ -484,7 +513,7 @@ startOverlay.id = 'startOverlay';
 startOverlay.innerHTML = '<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px"><div style="font-size:48px">🚗</div><div style="font-size:22px;font-weight:700;color:var(--text)">AI 路书 · 车载导游</div><div style="font-size:14px;color:var(--text2);text-align:center;line-height:1.8">开车时自动为你讲解<br>沿途城市和景点的故事</div><button onclick="doStart()" style="background:var(--accent);color:#fff;border:none;padding:16px 48px;border-radius:24px;font-size:18px;font-weight:600;cursor:pointer;margin-top:12px">开始旅程</button></div>';
 document.body.appendChild(startOverlay);
 function doStart(){
-  started = true;
+  started = true; initDebugCities();
   if (!getApiKey()) { setTimeout(function(){ toggleSettings(); }, 500); }
   // 用一次真实的用户点击来"解锁"语音合成
   var u = new SpeechSynthesisUtterance(''); u.volume = 0;
@@ -492,6 +521,8 @@ function doStart(){
   startGPS(); renderHistory();
   setInterval(function(){ if (STATE.gps) findNearestCity(); }, 10000);
   document.getElementById('startOverlay').style.display = 'none';
+  // 如果已通过测试模式选了城市，直接触发讲解
+  if (debugOverride) { setTimeout(function(){ requestNarration(); }, 1000); }
 }
 </script>
 </body>
